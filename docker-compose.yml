@@ -1,0 +1,66 @@
+version: "3.9"
+
+services:
+  # pgadmin4 for pgbouncer.
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: always
+    ports:
+      - 5050:80
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-pgadmin4@pgadmin.org}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+    networks:
+      - postgres-pgadmin
+  
+  # Postgres database.
+  postgres_db:  
+    build:
+      context: postgres/
+      args:
+        POSTGRESQL_SCHEMA: ${POSTGRESQL_SCHEMA}
+        POSTGRESQL_USER: ${POSTGRESQL_USER}
+    restart: always
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${POSTGRESQL_USER}  # define credentials
+      POSTGRES_PASSWORD: ${POSTGRESQL_PASSWORD}      # define credentials
+      POSTGRES_DB: ${POSTGRESQL_DB}      # define database
+      PGPORT: 5432
+    # Для внешнего подключения к БД
+    ports:
+      - 5438:5432 # Postgres port  
+    networks:
+      - postgres-pgadmin             
+
+  pgbouncer:
+    image: edoburu/pgbouncer
+    volumes:
+      - ./data/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt
+    environment:
+      DB_USER: ${POSTGRESQL_USER}   # define credentials
+      DB_PASSWORD: ${POSTGRESQL_PASSWORD} # define credentials
+      DB_NAME: ${POSTGRESQL_DB} 
+      DB_HOST: postgres_db
+      POOL_MODE: transaction
+      ADMIN_USERS: postgres, ${POSTGRESQL_USER}
+      AUTH_TYPE: md5
+      LISTEN_PORT: 6432
+      IGNORE_STARTUP_PARAMETERS: search_path, extra_float_digits
+    ports: 
+      - 6432:6432 # PgBouncer port
+    depends_on:
+      - postgres_db 
+    networks:
+      - postgres-pgadmin
+  
+networks:
+  postgres-pgadmin:
+    driver: bridge
+
+volumes:
+  pg_data:
+  pgadmin_data:
